@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.noten.app.ui.TunerScreen
+import com.noten.app.navigation.NotenNavigation
 import com.noten.app.ui.theme.DarkBackground
 import com.noten.app.ui.theme.NotenTheme
 import com.noten.app.viewmodel.TunerViewModel
@@ -36,14 +36,14 @@ class MainActivity : ComponentActivity() {
                 val vm: TunerViewModel = viewModel()
                 tunerViewModel = vm
 
-                val uiState by vm.uiState.collectAsState()
+                val tunerUiState by vm.uiState.collectAsState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = DarkBackground
                 ) {
-                    TunerScreen(
-                        uiState = uiState,
+                    NotenNavigation(
+                        tunerUiState = tunerUiState,
                         onToggleListening = vm::toggleListening,
                         onRequestPermission = {
                             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)

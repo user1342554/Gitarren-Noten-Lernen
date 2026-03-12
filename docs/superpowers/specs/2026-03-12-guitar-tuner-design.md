@@ -53,7 +53,10 @@ A minimalist Android app that listens to a guitar through the device microphone 
 ┌──────────────┴──────────────────────┐
 │        AudioProcessor               │
 │  - AudioRecord (44100Hz, mono, 16b) │
-│  - Reads PCM in coroutine loop      │
+│  - Reads PCM in coroutine (IO)      │
+│  - Sliding window buffer management │
+│  - RMS silence gate                 │
+│  - Median-of-3 smoothing            │
 │  - Feeds buffer to YIN detector     │
 │  - Reports detected frequency       │
 └──────────────┬──────────────────────┘
@@ -100,11 +103,13 @@ app/src/main/java/com/noten/app/
 
 1. `AudioRecord` captures mono 16-bit PCM at 44100 Hz
 2. Buffer size: 4096 samples (~93ms window)
-3. Overlap: 75% (3072 samples) → new result every ~23ms
+3. Sliding window with 75% overlap: maintain a rolling buffer of 4096 samples, shift out the oldest 1024 and read 1024 new samples per iteration → new result every ~23ms
 4. PCM bytes → FloatArray (normalized -1.0 to 1.0)
-5. YIN algorithm processes buffer → frequency in Hz (or -1 if no pitch)
-6. Frequency passed to ViewModel via callback
-7. ViewModel converts to note name + cents, updates UI state
+5. **Silence gate**: compute RMS of buffer; skip pitch detection if RMS < 0.01 (below noise floor)
+6. YIN algorithm processes buffer → frequency in Hz (or -1 if no pitch)
+7. **Smoothing**: median-of-3 filter on recent frequency results to reduce jitter; note hold timer requires 3 consecutive frames of a new note before switching display
+8. Frequency passed to ViewModel via callback
+9. ViewModel converts to note name + cents, updates UI state
 
 ## YIN Algorithm
 
@@ -117,7 +122,7 @@ The YIN algorithm (de Cheveigne & Kawahara, 2002) detects fundamental frequency 
 5. **Convert lag to frequency**: `frequency = sampleRate / lag`
 
 Parameters:
-- Threshold: 0.2 (standard, good for guitar)
+- Threshold: 0.2 (standard default for guitar; defined as a constant, may need empirical tuning — lower values like 0.10-0.15 improve accuracy but increase missed detections)
 - Buffer: 4096 samples (captures ~7.5 periods of lowest guitar note E2 at 82 Hz)
 
 ## Frequency to Note Conversion
@@ -129,7 +134,7 @@ centsDeviation = (semitonesFromA4 - nearestSemitone) * 100
 
 noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 noteIndex = (nearestSemitone + 9 + 1200) % 12   // A is index 9
-octave = 4 + (nearestSemitone + 9) / 12
+octave = 4 + floor((nearestSemitone + 9).toDouble() / 12.0).toInt()  // floor division for correct octave below A4
 ```
 
 - Positive cents = sharp (too high)
@@ -165,6 +170,14 @@ octave = 4 + (nearestSemitone + 9) / 12
 
 - `android.permission.RECORD_AUDIO` (runtime request required)
 - No other permissions needed (foreground-only operation)
+
+## Lifecycle & Threading
+
+- Audio capture runs on `Dispatchers.IO` (dedicated coroutine)
+- Coroutine is scoped to `viewModelScope` — survives config changes, stops on ViewModel clear
+- When app goes to background: stop `AudioRecord` and release microphone (save battery, avoid conflicts)
+- When app returns to foreground: restart capture if it was running before
+- All UI state updates dispatched to main thread via `StateFlow`
 
 ## Error Handling
 

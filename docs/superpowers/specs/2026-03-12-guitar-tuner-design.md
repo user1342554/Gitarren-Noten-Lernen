@@ -1,0 +1,180 @@
+# Guitar Note Recognition Android App – Design Spec
+
+## Overview
+
+A minimalist Android app that listens to a guitar through the device microphone and displays the detected note in real time, including how sharp or flat the note is (like a tuner).
+
+## Goals
+
+- Accurately detect the fundamental pitch of a single guitar note (monophonic)
+- Display note name, octave, frequency, and cents deviation in real time
+- Provide clear visual feedback: in tune vs. sharp vs. flat
+- Low latency (<100ms perceived delay)
+- No external native dependencies – pure Kotlin
+
+## Non-Goals
+
+- Chord recognition
+- Polyphonic pitch detection
+- Recording or playback
+- Custom tuning presets (can be added later)
+
+## Tech Stack
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Language | Kotlin | Modern Android standard |
+| UI | Jetpack Compose + Material 3 | Declarative, modern |
+| Audio Capture | `AudioRecord` API | Standard Android, sufficient latency for tuner |
+| Pitch Detection | YIN algorithm (custom Kotlin) | Proven for monophonic instruments, ~150 lines, no dependency |
+| Architecture | MVVM | ViewModel + StateFlow + Compose |
+| Min SDK | 26 (Android 8.0) | Covers >95% of devices |
+| Build | Gradle (Kotlin DSL) | Standard |
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│           UI Layer (Compose)        │
+│  TunerScreen                        │
+│  - Note name (large, centered)      │
+│  - Tuner gauge (cents deviation)    │
+│  - Frequency display                │
+│  - Start/Stop button                │
+└──────────────┬──────────────────────┘
+               │ observes StateFlow<TunerUiState>
+┌──────────────┴──────────────────────┐
+│         TunerViewModel              │
+│  - Manages TunerUiState             │
+│  - Starts/stops AudioProcessor      │
+│  - Maps pitch -> note + cents       │
+└──────────────┬──────────────────────┘
+               │ callback: onPitchDetected(Hz)
+┌──────────────┴──────────────────────┐
+│        AudioProcessor               │
+│  - AudioRecord (44100Hz, mono, 16b) │
+│  - Reads PCM in coroutine loop      │
+│  - Feeds buffer to YIN detector     │
+│  - Reports detected frequency       │
+└──────────────┬──────────────────────┘
+               │ calls
+┌──────────────┴──────────────────────┐
+│        YinPitchDetector             │
+│  - Implements YIN algorithm         │
+│  - Input: FloatArray (audio buffer) │
+│  - Output: Float (frequency in Hz)  │
+│  - Pure function, no state          │
+└─────────────────────────────────────┘
+
+Utility:
+┌─────────────────────────────────────┐
+│        NoteUtils                    │
+│  - frequencyToNote(hz) -> Note      │
+│  - Note: name, octave, cents, hz    │
+│  - A4 = 440 Hz reference            │
+└─────────────────────────────────────┘
+```
+
+## File Structure
+
+```
+app/src/main/java/com/noten/app/
+├── MainActivity.kt              # Entry point, permission handling
+├── ui/
+│   ├── theme/
+│   │   ├── Theme.kt             # Dark theme setup
+│   │   ├── Color.kt             # Color definitions
+│   │   └── Type.kt              # Typography
+│   └── TunerScreen.kt           # Main Compose UI
+├── viewmodel/
+│   └── TunerViewModel.kt        # UI state management
+├── audio/
+│   ├── AudioProcessor.kt        # AudioRecord capture + coroutine loop
+│   └── YinPitchDetector.kt      # YIN algorithm implementation
+└── model/
+    ├── TunerUiState.kt          # Data class for UI state
+    └── NoteUtils.kt             # Frequency-to-note conversion
+```
+
+## Audio Pipeline
+
+1. `AudioRecord` captures mono 16-bit PCM at 44100 Hz
+2. Buffer size: 4096 samples (~93ms window)
+3. Overlap: 75% (3072 samples) → new result every ~23ms
+4. PCM bytes → FloatArray (normalized -1.0 to 1.0)
+5. YIN algorithm processes buffer → frequency in Hz (or -1 if no pitch)
+6. Frequency passed to ViewModel via callback
+7. ViewModel converts to note name + cents, updates UI state
+
+## YIN Algorithm
+
+The YIN algorithm (de Cheveigne & Kawahara, 2002) detects fundamental frequency through:
+
+1. **Difference function**: For each lag τ, compute the squared difference between signal and shifted signal
+2. **Cumulative mean normalized difference**: Normalize to make threshold-based detection reliable
+3. **Absolute threshold**: Find first dip below threshold (default 0.2) in the normalized function
+4. **Parabolic interpolation**: Refine the lag estimate for sub-sample accuracy
+5. **Convert lag to frequency**: `frequency = sampleRate / lag`
+
+Parameters:
+- Threshold: 0.2 (standard, good for guitar)
+- Buffer: 4096 samples (captures ~7.5 periods of lowest guitar note E2 at 82 Hz)
+
+## Frequency to Note Conversion
+
+```
+semitonesFromA4 = 12 * log2(frequency / 440.0)
+nearestSemitone = round(semitonesFromA4)
+centsDeviation = (semitonesFromA4 - nearestSemitone) * 100
+
+noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+noteIndex = (nearestSemitone + 9 + 1200) % 12   // A is index 9
+octave = 4 + (nearestSemitone + 9) / 12
+```
+
+- Positive cents = sharp (too high)
+- Negative cents = flat (too low)
+- ±5 cents = considered "in tune"
+
+## UI Design
+
+**Theme**: Dark, minimal. Black background, white/green/red accents.
+
+**Layout** (single screen, portrait):
+
+```
+┌─────────────────────────────┐
+│                             │
+│    ◄━━━━━━━━|━━━━━━━━►     │  ← Tuner gauge (-50 to +50 cents)
+│          -23 cents          │
+│                             │
+│            E4               │  ← Note name (very large)
+│         329.6 Hz            │  ← Frequency (smaller)
+│                             │
+│         [ STOP ]            │  ← Start/Stop toggle
+│                             │
+└─────────────────────────────┘
+```
+
+**Color coding**:
+- Gauge indicator: green when ±5 cents, yellow ±15, red beyond
+- Note name text: same color scheme
+- Smooth animation on gauge movement
+
+## Permissions
+
+- `android.permission.RECORD_AUDIO` (runtime request required)
+- No other permissions needed (foreground-only operation)
+
+## Error Handling
+
+- No microphone permission → show explanation + re-request button
+- No pitch detected (silence/noise) → show "--" as note, gauge centered
+- Device doesn't support required audio config → show error message
+
+## Testing Strategy
+
+- **YinPitchDetector**: Unit tests with known sine wave buffers (generate 440Hz → expect A4, generate 82Hz → expect E2)
+- **NoteUtils**: Unit tests for frequency-to-note mapping (edge cases at note boundaries)
+- **AudioProcessor**: Integration test (manual, on device)
+- **UI**: Manual testing with real guitar

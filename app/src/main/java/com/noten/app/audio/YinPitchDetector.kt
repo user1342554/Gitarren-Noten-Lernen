@@ -2,7 +2,7 @@ package com.noten.app.audio
 
 object YinPitchDetector {
 
-    const val DEFAULT_THRESHOLD = 0.20f
+    const val DEFAULT_THRESHOLD = 0.15f
 
     fun detect(
         buffer: FloatArray,

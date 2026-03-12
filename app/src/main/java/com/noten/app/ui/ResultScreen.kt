@@ -68,7 +68,6 @@ fun ResultScreen(
             color = scoreColor
         )
 
-        // Percentage
         Text(
             "$percentage% Genauigkeit",
             color = TextGray,
@@ -78,7 +77,6 @@ fun ResultScreen(
 
         Spacer(modifier = Modifier.height(64.dp))
 
-        // Buttons
         Button(
             onClick = onPlayAgain,
             colors = ButtonDefaults.buttonColors(containerColor = InTuneGreen),

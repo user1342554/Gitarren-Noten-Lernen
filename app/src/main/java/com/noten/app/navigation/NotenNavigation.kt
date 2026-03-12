@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.noten.app.model.TunerUiState
+import com.noten.app.quiz.Difficulty
 import com.noten.app.ui.HomeScreen
 import com.noten.app.ui.QuizScreen
 import com.noten.app.ui.ResultScreen
@@ -15,9 +16,10 @@ import com.noten.app.ui.TunerScreen
 object Routes {
     const val HOME = "home"
     const val TUNER = "tuner"
-    const val QUIZ = "quiz"
+    const val QUIZ = "quiz/{difficulty}"
     const val RESULT = "result/{score}/{total}"
 
+    fun quiz(difficulty: Difficulty) = "quiz/${difficulty.name}"
     fun result(score: Int, total: Int) = "result/$score/$total"
 }
 
@@ -32,7 +34,9 @@ fun NotenNavigation(
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
-                onStartQuiz = { navController.navigate(Routes.QUIZ) },
+                onStartQuiz = { difficulty ->
+                    navController.navigate(Routes.quiz(difficulty))
+                },
                 onOpenTuner = { navController.navigate(Routes.TUNER) }
             )
         }
@@ -46,11 +50,19 @@ fun NotenNavigation(
             )
         }
 
-        composable(Routes.QUIZ) {
+        composable(
+            route = Routes.QUIZ,
+            arguments = listOf(
+                navArgument("difficulty") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val difficultyName = backStackEntry.arguments?.getString("difficulty") ?: Difficulty.OPEN_STRINGS.name
+            val difficulty = Difficulty.valueOf(difficultyName)
             QuizScreen(
-                onFinished = { score, total ->
+                difficulty = difficulty,
+                onStop = { score, total ->
                     navController.navigate(Routes.result(score, total)) {
-                        popUpTo(Routes.QUIZ) { inclusive = true }
+                        popUpTo(Routes.HOME)
                     }
                 },
                 onBack = { navController.popBackStack() }
@@ -65,19 +77,15 @@ fun NotenNavigation(
             )
         ) { backStackEntry ->
             val score = backStackEntry.arguments?.getInt("score") ?: 0
-            val total = backStackEntry.arguments?.getInt("total") ?: 10
+            val total = backStackEntry.arguments?.getInt("total") ?: 0
             ResultScreen(
                 score = score,
                 total = total,
                 onPlayAgain = {
-                    navController.navigate(Routes.QUIZ) {
-                        popUpTo(Routes.HOME)
-                    }
+                    navController.popBackStack(Routes.HOME, false)
                 },
                 onGoHome = {
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.HOME) { inclusive = true }
-                    }
+                    navController.popBackStack(Routes.HOME, false)
                 }
             )
         }

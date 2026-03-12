@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.noten.app.quiz.Difficulty
 import com.noten.app.quiz.Feedback
 import com.noten.app.quiz.QuizViewModel
 import com.noten.app.quiz.StaffNotation
@@ -25,11 +26,17 @@ import com.noten.app.ui.theme.*
 
 @Composable
 fun QuizScreen(
-    onFinished: (score: Int, total: Int) -> Unit,
+    difficulty: Difficulty,
+    onStop: (score: Int, total: Int) -> Unit,
     onBack: () -> Unit
 ) {
     val vm: QuizViewModel = viewModel()
     val uiState by vm.uiState.collectAsState()
+
+    // Set difficulty before starting
+    LaunchedEffect(difficulty) {
+        vm.setDifficulty(difficulty)
+    }
 
     // Permission handling
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -42,43 +49,54 @@ fun QuizScreen(
         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    // Navigate to results when finished
-    LaunchedEffect(uiState.isFinished) {
-        if (uiState.isFinished) {
-            val score = uiState.results.count { it.correct }
-            onFinished(score, uiState.totalNotes)
-        }
-    }
-
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Top bar with back button
+        // Top bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = {
+                val (score, total) = vm.stopAndGetResults()
+                if (total > 0) {
+                    onStop(score, total)
+                } else {
+                    onBack()
+                }
+            }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Zur\u00fcck", tint = TextWhite)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text(
-                "${uiState.currentIndex + 1} / ${uiState.totalNotes}",
-                color = TextGray,
-                style = MaterialTheme.typography.bodyLarge
-            )
+
+            // Running score
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${uiState.score} richtig",
+                    color = InTuneGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (uiState.streak > 1) {
+                    Text(
+                        "${uiState.streak}x Serie",
+                        color = CloseYellow,
+                        fontSize = 12.sp
+                    )
+                }
+            }
         }
 
-        // Progress bar
-        LinearProgressIndicator(
-            progress = { (uiState.currentIndex.toFloat()) / uiState.totalNotes },
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            color = InTuneGreen,
-            trackColor = DarkSurface,
+        // Difficulty label
+        Text(
+            uiState.difficulty.label,
+            color = TextGray,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(vertical = 4.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Staff notation
         val noteColor = when (uiState.feedback) {
@@ -94,7 +112,7 @@ fun QuizScreen(
 
         if (uiState.currentNote != null) {
             Card(
-                modifier = Modifier.fillMaxWidth().height(200.dp),
+                modifier = Modifier.fillMaxWidth().height(220.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1a1a2e))
             ) {
                 StaffNotation(
@@ -115,13 +133,22 @@ fun QuizScreen(
             }
             is Feedback.Wrong -> {
                 Text("\u2717", fontSize = 64.sp, color = OffRed)
-                Text("Falsch \u2013 du hast ${fb.playedNote} gespielt", color = OffRed, fontSize = 16.sp)
+                Text(
+                    "Das war ${fb.playedNote} \u2013 nochmal!",
+                    color = OffRed,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
             }
             null -> {
-                // Listening indicator
                 if (uiState.isListening) {
                     Text("\uD83C\uDFB5", fontSize = 48.sp)
-                    Text("Lausche...", color = InTuneGreen, fontSize = 16.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text(
+                        "Lausche...",
+                        color = InTuneGreen,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
         }
@@ -137,5 +164,22 @@ fun QuizScreen(
             textAlign = TextAlign.Center
         )
         Text("Erkannt", color = TextGray, fontSize = 12.sp)
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Stop button
+        OutlinedButton(
+            onClick = {
+                val (score, total) = vm.stopAndGetResults()
+                if (total > 0) {
+                    onStop(score, total)
+                } else {
+                    onBack()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("Beenden", fontSize = 16.sp, color = TextWhite)
+        }
     }
 }

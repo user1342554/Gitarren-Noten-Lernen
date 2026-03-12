@@ -19,27 +19,35 @@ class QuizViewModel : ViewModel() {
 
     private var audioJob: Job? = null
     private var audioProcessor: AudioProcessor? = null
-    private var roundNotes: List<QuizNote> = emptyList()
     private var noteStartTimeMs: Long = 0L
+    private var pool: List<QuizNote> = emptyList()
 
     private var consecutiveDetections = 0
     private var lastDetectedName = ""
     private val requiredConsecutive = 3
     private var answerLocked = false
 
-    fun onPermissionResult(granted: Boolean) {
-        _uiState.update { it.copy(hasPermission = granted) }
-        if (granted) startRound()
+    fun setDifficulty(difficulty: Difficulty) {
+        _uiState.update { it.copy(difficulty = difficulty) }
     }
 
-    fun startRound() {
-        roundNotes = NotePool.generateRound(NotePool.OPEN_STRINGS, 10)
+    fun onPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(hasPermission = granted) }
+        if (granted) startSession()
+    }
+
+    fun startSession() {
+        pool = NotePool.poolForDifficulty(_uiState.value.difficulty)
+        val firstNote = NotePool.randomNote(pool)
         _uiState.update {
-            QuizUiState(
-                currentNote = roundNotes[0],
-                currentIndex = 0,
-                totalNotes = roundNotes.size,
-                hasPermission = it.hasPermission
+            it.copy(
+                currentNote = firstNote,
+                score = 0,
+                attempts = 0,
+                streak = 0,
+                bestStreak = 0,
+                feedback = null,
+                detectedNoteName = "--"
             )
         }
         noteStartTimeMs = System.currentTimeMillis()
@@ -66,11 +74,40 @@ class QuizViewModel : ViewModel() {
 
                 if (consecutiveDetections >= requiredConsecutive) {
                     val target = _uiState.value.currentNote ?: return@AudioProcessor
-                    val timeMs = System.currentTimeMillis() - noteStartTimeMs
                     val correct = note.name == target.name
 
                     answerLocked = true
-                    recordResult(target, note.name, correct, timeMs)
+
+                    if (correct) {
+                        val newStreak = _uiState.value.streak + 1
+                        _uiState.update {
+                            it.copy(
+                                feedback = Feedback.Correct,
+                                score = it.score + 1,
+                                attempts = it.attempts + 1,
+                                streak = newStreak,
+                                bestStreak = maxOf(it.bestStreak, newStreak)
+                            )
+                        }
+                        // Correct: brief green flash, then next note
+                        viewModelScope.launch {
+                            delay(800L)
+                            nextNote()
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                feedback = Feedback.Wrong(note.name),
+                                attempts = it.attempts + 1,
+                                streak = 0
+                            )
+                        }
+                        // Wrong: show what was played, then let them retry the SAME note
+                        viewModelScope.launch {
+                            delay(1200L)
+                            retryCurrentNote()
+                        }
+                    }
                 }
             },
             onSilence = {
@@ -84,38 +121,40 @@ class QuizViewModel : ViewModel() {
         }
     }
 
-    private fun recordResult(target: QuizNote, playedName: String, correct: Boolean, timeMs: Long) {
-        val result = QuizNoteResult(target, playedName, correct, timeMs)
-        val newResults = _uiState.value.results + result
-        val feedback = if (correct) Feedback.Correct else Feedback.Wrong(playedName)
-
-        _uiState.update { it.copy(feedback = feedback, results = newResults) }
-
-        viewModelScope.launch {
-            delay(if (correct) 1000L else 1500L)
-            advanceToNextNote()
+    private fun nextNote() {
+        val newNote = NotePool.randomNote(pool)
+        _uiState.update {
+            it.copy(
+                currentNote = newNote,
+                feedback = null,
+                detectedNoteName = "--"
+            )
         }
+        noteStartTimeMs = System.currentTimeMillis()
+        resetDetection()
     }
 
-    private fun advanceToNextNote() {
-        val nextIndex = _uiState.value.currentIndex + 1
-        if (nextIndex >= roundNotes.size) {
-            stopListening()
-            _uiState.update { it.copy(isFinished = true, feedback = null) }
-        } else {
-            _uiState.update {
-                it.copy(
-                    currentNote = roundNotes[nextIndex],
-                    currentIndex = nextIndex,
-                    feedback = null,
-                    detectedNoteName = "--"
-                )
-            }
-            noteStartTimeMs = System.currentTimeMillis()
-            answerLocked = false
-            consecutiveDetections = 0
-            lastDetectedName = ""
+    private fun retryCurrentNote() {
+        // Keep the same note, just clear feedback so they can try again
+        _uiState.update {
+            it.copy(
+                feedback = null,
+                detectedNoteName = "--"
+            )
         }
+        resetDetection()
+    }
+
+    private fun resetDetection() {
+        answerLocked = false
+        consecutiveDetections = 0
+        lastDetectedName = ""
+    }
+
+    fun stopAndGetResults(): Pair<Int, Int> {
+        stopListening()
+        val state = _uiState.value
+        return Pair(state.score, state.attempts)
     }
 
     private fun stopListening() {

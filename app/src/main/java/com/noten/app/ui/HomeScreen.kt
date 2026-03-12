@@ -9,11 +9,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.noten.app.quiz.Difficulty
 import com.noten.app.ui.theme.*
 
 @Composable
 fun HomeScreen(
-    onStartQuiz: () -> Unit,
+    onStartQuiz: (Difficulty) -> Unit,
     onOpenTuner: () -> Unit
 ) {
     Column(
@@ -34,24 +35,52 @@ fun HomeScreen(
             color = TextGray,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp, bottom = 64.dp)
+            modifier = Modifier.padding(top = 8.dp, bottom = 48.dp)
+        )
+
+        // Difficulty buttons
+        Text(
+            text = "Schwierigkeit",
+            color = TextGray,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(bottom = 12.dp)
         )
 
         Button(
-            onClick = onStartQuiz,
+            onClick = { onStartQuiz(Difficulty.OPEN_STRINGS) },
             colors = ButtonDefaults.buttonColors(containerColor = InTuneGreen),
-            modifier = Modifier.fillMaxWidth().height(64.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) {
-            Text("Noten Quiz", fontSize = 20.sp)
+            Text("Leere Saiten", fontSize = 18.sp)
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = { onStartQuiz(Difficulty.FIRST_POSITION) },
+            colors = ButtonDefaults.buttonColors(containerColor = CloseYellow),
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("Erste Lage", fontSize = 18.sp, color = DarkBackground)
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = { onStartQuiz(Difficulty.ALL_NOTES) },
+            colors = ButtonDefaults.buttonColors(containerColor = OffRed),
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("Alle Noten", fontSize = 18.sp)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedButton(
             onClick = onOpenTuner,
-            modifier = Modifier.fillMaxWidth().height(64.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
         ) {
-            Text("Stimmger\u00e4t", fontSize = 20.sp, color = TextWhite)
+            Text("Stimmger\u00e4t", fontSize = 18.sp, color = TextWhite)
         }
     }
 }

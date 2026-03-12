@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.noten.app.audio.YinPitchDetectorTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-03-12T21:04:57" hostname="JONAS" time="0.053">
+  <properties/>
+  <testcase name="detects E2 at 82 Hz()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.025"/>
+  <testcase name="returns -1 for silence()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.01"/>
+  <testcase name="detects A4 at 440 Hz()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.003"/>
+  <testcase name="detects E4 at 330 Hz()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.003"/>
+  <testcase name="detects D3 at 147 Hz()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.003"/>
+  <testcase name="returns -1 for noise below threshold()" classname="com.noten.app.audio.YinPitchDetectorTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

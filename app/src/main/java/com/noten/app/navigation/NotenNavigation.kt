@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.noten.app.model.GuitarTuning
 import com.noten.app.model.TunerUiState
 import com.noten.app.quiz.Difficulty
 import com.noten.app.ui.HomeScreen
@@ -27,6 +28,7 @@ object Routes {
 fun NotenNavigation(
     tunerUiState: TunerUiState,
     onToggleListening: () -> Unit,
+    onTuningChanged: (GuitarTuning) -> Unit,
     onRequestPermission: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -46,6 +48,7 @@ fun NotenNavigation(
                 uiState = tunerUiState,
                 onToggleListening = onToggleListening,
                 onRequestPermission = onRequestPermission,
+                onTuningChanged = onTuningChanged,
                 onBack = { navController.popBackStack() }
             )
         }

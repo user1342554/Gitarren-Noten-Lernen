@@ -3,6 +3,8 @@ package com.noten.app.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.noten.app.audio.AudioProcessor
+import com.noten.app.model.GuitarTuning
+import com.noten.app.model.GuitarTunings
 import com.noten.app.model.NoteUtils
 import com.noten.app.model.TunerUiState
 import kotlinx.coroutines.Job
@@ -23,6 +25,10 @@ class TunerViewModel : ViewModel() {
     private var lastNoteName: String = ""
     private var noteHoldCount: Int = 0
     private val noteHoldThreshold = 3
+
+    fun setTuning(tuning: GuitarTuning) {
+        _uiState.update { it.copy(tuning = tuning, closestString = null, centsFromTarget = 0.0) }
+    }
 
     fun onPermissionResult(granted: Boolean) {
         _uiState.update { it.copy(hasPermission = granted) }
@@ -60,18 +66,33 @@ class TunerViewModel : ViewModel() {
                     noteHoldCount = 0
                 }
 
+                val tuning = _uiState.value.tuning
+                val closest = tuning.closestString(frequency.toDouble())
+                val centsFromTarget = if (closest != null) {
+                    GuitarTuning.frequencyToCents(frequency.toDouble(), closest.frequency)
+                } else 0.0
+
                 _uiState.update {
                     it.copy(
                         noteName = note.name,
                         octave = note.octave,
                         cents = note.cents,
-                        frequency = note.frequency
+                        frequency = note.frequency,
+                        closestString = closest,
+                        centsFromTarget = centsFromTarget
                     )
                 }
             },
             onSilence = {
                 _uiState.update {
-                    it.copy(noteName = "--", octave = 0, cents = 0.0, frequency = 0.0)
+                    it.copy(
+                        noteName = "--",
+                        octave = 0,
+                        cents = 0.0,
+                        frequency = 0.0,
+                        closestString = null,
+                        centsFromTarget = 0.0
+                    )
                 }
             }
         )

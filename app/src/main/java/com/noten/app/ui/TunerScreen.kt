@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +26,22 @@ import kotlin.math.abs
 fun TunerScreen(
     uiState: TunerUiState,
     onToggleListening: () -> Unit,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (onBack != null) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = TextWhite
+                )
+            }
+        }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -107,6 +123,7 @@ fun TunerScreen(
                 fontSize = 20.sp
             )
         }
+    }
     }
 }
 

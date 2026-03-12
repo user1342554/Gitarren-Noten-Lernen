@@ -1,0 +1,3 @@
+D:\noten\app\src\test\java\com\noten\app\audio\YinPitchDetectorTest.kt
+D:\noten\app\src\test\java\com\noten\app\model\NoteUtilsTest.kt
+D:\noten\app\src\test\java\com\noten\app\quiz\NotePoolTest.kt
